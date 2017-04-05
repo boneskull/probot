@@ -1,7 +1,9 @@
+const url = require('url');
 const cacheManager = require('cache-manager');
 const createWebhook = require('github-webhook-handler');
 const createIntegration = require('github-integration');
 const Raven = require('raven');
+const StatsD = require('hot-shots');
 const createRobot = require('./lib/robot');
 const createServer = require('./lib/server');
 
@@ -17,8 +19,16 @@ module.exports = options => {
     cert: options.cert,
     debug: process.env.LOG_LEVEL === 'trace'
   });
+
+  const statsUrl = url.parse(process.env.STATS_URL || '');
+  const stats = new StatsD({
+    host: statsUrl.host,
+    port: statsUrl.port,
+    prefix: (statsUrl.pathname || '').replace('/', '')
+  });
+
   const server = createServer(webhook);
-  const robot = createRobot(integration, webhook, cache);
+  const robot = createRobot({integration, webhook, cache, stats});
 
   if (process.env.SENTRY_URL) {
     Raven.config(process.env.SENTRY_URL, {
