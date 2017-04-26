@@ -50,22 +50,22 @@ function setupTunnel() {
 const pkgConf = require('pkg-conf');
 const createProbot = require('../');
 
-const probot = createProbot({
+const probot = await createProbot({
   id: program.integration,
   secret: program.secret,
   cert: program.privateKey,
   port: program.port
 });
 
-pkgConf('probot').then(pkg => {
-  const plugins = require('../lib/plugin')(probot);
-  const requestedPlugins = program.args.concat(pkg.plugins || []);
+const pkg = await pkgConf('probot');
+const plugins = require('../lib/plugin')(probot);
+const requestedPlugins = program.args.concat(pkg.plugins || []);
 
-  // if we have explicitly requested plugins, load them; otherwise use autoloading
-  if (requestedPlugins.length) {
-    plugins.load(requestedPlugins);
-  } else {
-    plugins.autoload();
-  }
-  probot.start();
-});
+// if we have explicitly requested plugins, load them; otherwise use autoloading
+if (requestedPlugins.length) {
+  plugins.load(requestedPlugins);
+} else {
+  plugins.autoload();
+}
+probot.start();
+

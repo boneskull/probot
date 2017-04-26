@@ -9,7 +9,7 @@ const Raven = require('raven');
 const createRobot = require('./lib/robot');
 const createServer = require('./lib/server');
 
-module.exports = options => {
+module.exports = async options => {
   const cache = cacheManager.caching({
     store: 'memory',
     ttl: 60 * 60 // 1 hour
@@ -21,13 +21,24 @@ module.exports = options => {
     stream: bunyanFormat({outputMode: process.env.LOG_FORMAT || 'short'})
   });
 
-  const webhook = createWebhook({path: '/', secret: options.secret});
   const integration = createIntegration({
     id: options.id,
     cert: options.cert,
     debug: process.env.LOG_LEVEL === 'trace'
   });
-  const server = createServer(webhook);
+
+  let server;
+  try {
+    server = await createServer({
+      port: options.port,
+      host: options.host,
+      secret: process.env.WEBHOOK_SECRET
+    });
+  } catch (err) {
+    throw err;
+  }
+
+  const {webhook} = server.app;
   const robot = createRobot({integration, webhook, cache, logger});
 
   if (process.env.SENTRY_URL) {
@@ -50,8 +61,16 @@ module.exports = options => {
     robot,
 
     start() {
-      server.listen(options.port);
-      logger.trace('Listening on http://localhost:' + options.port);
+      return new Promise((resolve, reject) => {
+        server.start(err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          logger.trace('Listening on http://localhost:' + options.port);
+          resolve()
+        });
+      });
     },
 
     load(plugin) {
